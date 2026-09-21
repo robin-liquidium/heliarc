@@ -9,7 +9,7 @@ jobs:
   checks:
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: swift test
       - run: python3 -m unittest discover -s script/tests -p 'test_*.py'
       - run: python3 script/prepare_release.py && git diff --exit-code
