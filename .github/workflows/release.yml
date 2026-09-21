@@ -45,7 +45,7 @@ jobs:
     timeout-minutes: 50
     env:
       GH_TOKEN: ${{ github.token }}
-      SIGNING_IDENTITY: Developer ID Application: Robin Obermaier (5S5288W3R7)
+      SIGNING_IDENTITY: "Developer ID Application: Robin Obermaier (5S5288W3R7)"
       APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
       RELEASE_TAG: ${{ needs.select.outputs.tag }}
@@ -66,4 +66,3 @@ jobs:
         run: |
           security delete-keychain "$RUNNER_TEMP/heliarc-signing.keychain-db" || true
           rm -f "$RUNNER_TEMP/heliarc.p8" "$RUNNER_TEMP/heliarc.p12"
-
