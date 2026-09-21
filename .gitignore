@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# SwiftPM and release output
+.build/
+dist/
+
+# IDE
+.idea/
+*.xcodeproj/
+*.xcworkspace/
+
+# Local credentials and caches
+*.log
+*.p8
+*.p12
+*.pem
+__pycache__/
+

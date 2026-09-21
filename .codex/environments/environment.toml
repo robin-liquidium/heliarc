@@ -1,0 +1,17 @@
+version = 1
+
+[setup]
+script = "swift package resolve"
+
+[[actions]]
+name = "Run Heliarc"
+command = "./script/build_and_run.sh"
+
+[[actions]]
+name = "Test Heliarc"
+command = "swift test"
+
+[[actions]]
+name = "Build release app"
+command = "python3 script/package_app.py"
+

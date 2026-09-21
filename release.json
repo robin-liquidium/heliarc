@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "build": 1000,
+  "date": "2026-09-21",
+  "changes": [
+    "Bring Arc-style Ctrl-Tab switching to Helium with native tab previews, favicons, and recent-tab ordering.",
+    "Work directly with Helium without a browser extension, native-messaging host, account, or analytics.",
+    "Keep thumbnail and favicon caches deliberately small, bounded, and local to the Mac.",
+    "Customize the shortcut, recent-tab count, menu-bar visibility, and launch-at-login behavior."
+  ]
+}
+
