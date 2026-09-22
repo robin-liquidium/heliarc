@@ -2,7 +2,7 @@
 
 Use `$heliarc-release` from this repository. `release.json` is the source of truth for the version, integer build, date, and release notes. `python3 script/prepare_release.py` validates it and synchronizes the README.
 
-Every public release is a universal macOS 14+ application, signed with Developer ID, notarized by Apple, stapled, and distributed as both a ZIP and DMG. Heliarc has no browser extension or updater framework.
+Every public release is a universal macOS 14+ application, signed with Developer ID, notarized by Apple, stapled, and distributed as both a ZIP and DMG. Heliarc has no browser extension; Sparkle provides signed in-app updates.
 
 ## Credentials
 
@@ -25,7 +25,13 @@ The release workflow loads them into an ephemeral keychain and removes the tempo
 5. Once Apple accepts both submissions, the workflow staples and verifies them, uploads stable and versioned ZIP/DMG files plus checksums and evidence, removes temporary submissions, and publishes the release.
 6. Download the public assets into a fresh temporary directory. Verify `SHA256SUMS`, the app and DMG staples, Gatekeeper, both architectures, version/build metadata, and the stable latest-release URLs in the README.
 
-The final assets are `Heliarc-VERSION.dmg`, `Heliarc.dmg`, `Heliarc-VERSION.zip`, `Heliarc.zip`, `release.json`, `notarization.json`, `release-state.json`, and `SHA256SUMS`.
+The final assets are `Heliarc-VERSION.dmg`, `Heliarc.dmg`, `Heliarc-VERSION.zip`, `Heliarc.zip`, `appcast.xml`, `release.json`, `notarization.json`, `release-state.json`, and `SHA256SUMS`. The appcast is generated from the notarized versioned DMG with Sparkle's pinned tools and is Ed25519-signed. The app embeds the matching public key and requires signed feeds.
+
+## Sparkle signing
+
+Heliarc uses a dedicated Sparkle keychain account named `heliarc`. The public key is stored in `sparkle.json` and embedded in the built app. GitHub Actions receives the private key as the encrypted `SPARKLE_PRIVATE_KEY` secret for the release step only.
+
+The private key must remain stable across releases. To export a backup, run Sparkle's `generate_keys --account heliarc -x FILE`, protect that file, and remove it after import. Losing the key prevents existing clients from validating signed feeds and updates.
 
 ## Pending or interrupted notarization
 
@@ -34,4 +40,3 @@ The final assets are `Heliarc-VERSION.dmg`, `Heliarc.dmg`, `Heliarc-VERSION.zip`
 `*_submitting` means the response may have been lost. Inspect Apple notarization history, reconcile the artifact name and timestamp, save the recovered submission ID into the existing draft state, and move the phase to `*_pending`. Do not submit again unless Apple history proves no request exists.
 
 `*_rejected` requires reading the matching notarization log and fixing the stated issue. A source change requires a new version, build, commit, and tag. Published tags are immutable.
-

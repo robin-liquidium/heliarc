@@ -61,6 +61,8 @@ jobs:
           APP_STORE_CONNECT_KEY_P8_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_P8_BASE64 }}
         run: python3 script/ci_credentials.py
       - run: python3 script/release.py "$RELEASE_TAG"
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
       - name: Clean up credentials
         if: always()
         run: |

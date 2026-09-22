@@ -60,7 +60,11 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual(state["phase"], "dmg_rejected")
             save.assert_called_once()
 
+    def test_appcast_requires_signing_key(self):
+        with patch.dict(release.os.environ, {}, clear=True), tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "SPARKLE_PRIVATE_KEY"):
+                release.generate_appcast("v1.0.0", Path(directory) / "Heliarc-1.0.0.dmg", {"changes": ["Test"]})
+
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -7,6 +7,7 @@ import plistlib
 import shutil
 import subprocess
 from pathlib import Path
+from sparkle import embed_and_sign, plist_settings
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "dist" / "release"
@@ -83,8 +84,10 @@ def package() -> Path:
         "NSAppleEventsUsageDescription": "Heliarc tracks the active Helium tab for recent-tab ordering and activates tabs when you use Ctrl-Tab.",
     }
     with (APP / "Contents" / "Info.plist").open("wb") as output:
+        info.update(plist_settings())
         plistlib.dump(info, output)
 
+    embed_and_sign(APP, identity)
     options = ["--timestamp", "--options", "runtime"] if identity != "-" else ["--timestamp=none"]
     run("codesign", "--force", *options, "--sign", identity, "--entitlements", ROOT / "entitlements.plist", APP)
     run("codesign", "--verify", "--deep", "--strict", APP)

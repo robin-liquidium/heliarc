@@ -11,9 +11,11 @@ final class PermissionState: ObservableObject {
 struct SetupView: View {
     @ObservedObject var permissions: PermissionState
     @ObservedObject var settings: HeliarcSettings
+    @ObservedObject var updateService: UpdateService
     let requestAccessibility: () -> Void
     let retryAutomation: () -> Void
     let requestScreenRecording: () -> Void
+    let resetFaviconCache: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -116,6 +118,41 @@ struct SetupView: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
+
+                Divider()
+
+                Toggle(
+                    "Automatically check for updates",
+                    isOn: Binding(
+                        get: { updateService.automaticallyChecksForUpdates },
+                        set: { updateService.setAutomaticallyChecksForUpdates($0) }
+                    )
+                )
+
+                Toggle(
+                    "Automatically download and install updates",
+                    isOn: Binding(
+                        get: { updateService.automaticallyDownloadsUpdates },
+                        set: { updateService.setAutomaticallyDownloadsUpdates($0) }
+                    )
+                )
+                .disabled(!updateService.automaticallyChecksForUpdates)
+
+                Button("Check for updates…") { updateService.checkForUpdates() }
+                    .disabled(!updateService.canCheckForUpdates)
+
+                DisclosureGroup("Advanced") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Heliarc keeps up to 512 favicons locally. Resetting does not change Helium's browser data.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button("Reset favicon cache", action: resetFaviconCache)
+                            .font(.caption)
+                            .buttonStyle(.link)
+                    }
+                    .padding(.top, 4)
+                }
+                .font(.caption)
 
                 Button("Reset to defaults") { settings.reset() }
                     .font(.caption)

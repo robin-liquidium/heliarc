@@ -8,10 +8,13 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
+from xml.etree import ElementTree
 from pathlib import Path
 from typing import Optional
 
 from package_app import APP, OUT, ROOT, package
+from sparkle import tool
 
 REPO = "robin-liquidium/heliarc"
 BASE = f"https://github.com/{REPO}/releases"
@@ -116,6 +119,46 @@ def archive_app(path: Path) -> None:
     call("ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", APP, path)
 
 
+def generate_appcast(tag: str, versioned_dmg: Path, release: dict) -> Path:
+    key = os.environ.get("SPARKLE_PRIVATE_KEY")
+    if not key:
+        raise ValueError("Missing SPARKLE_PRIVATE_KEY; refusing to publish an unsigned update feed")
+    with tempfile.TemporaryDirectory(prefix="heliarc-appcast-") as directory:
+        archives = Path(directory)
+        shutil.copy2(versioned_dmg, archives / versioned_dmg.name)
+        notes = archives / f"{versioned_dmg.stem}.md"
+        notes.write_text("\n".join(f"- {change}" for change in release["changes"]) + "\n")
+        call(
+            tool("generate_appcast"),
+            "--ed-key-file",
+            "-",
+            "--download-url-prefix",
+            f"{BASE}/download/{tag}/",
+            "--embed-release-notes",
+            "--maximum-deltas",
+            "0",
+            "--maximum-versions",
+            "1",
+            archives,
+            input_text=key,
+        )
+        generated = archives / "appcast.xml"
+        if not generated.is_file():
+            raise RuntimeError("Sparkle did not generate appcast.xml")
+        call(tool("sign_update"), "--ed-key-file", "-", "--verify", generated, input_text=key)
+        root = ElementTree.parse(generated).getroot()
+        sparkle = "http://www.andymatuschak.org/xml-namespaces/sparkle"
+        enclosure = root.find(".//enclosure")
+        if enclosure is None or not enclosure.get(f"{{{sparkle}}}edSignature"):
+            raise RuntimeError("Generated appcast has no Sparkle EdDSA signature")
+        expected = f"{BASE}/download/{tag}/{versioned_dmg.name}"
+        if enclosure.get("url") != expected:
+            raise RuntimeError(f"Unexpected appcast download URL: {enclosure.get('url')}")
+        feed = OUT / "appcast.xml"
+        shutil.copy2(generated, feed)
+        return feed
+
+
 def publish_artifacts(tag: str, state: dict, release: dict) -> None:
     submitted_dmg = fetch(tag, state["dmg"]["file"], state["dmg"]["sha256"])
     validate(submitted_dmg, "dmg")
@@ -128,6 +171,8 @@ def publish_artifacts(tag: str, state: dict, release: dict) -> None:
     stable_zip = OUT / "Heliarc.zip"
     shutil.copy2(versioned_zip, stable_zip)
 
+    feed = generate_appcast(tag, versioned_dmg, release)
+
     evidence = OUT / "notarization.json"
     evidence.write_text(
         json.dumps(
@@ -136,7 +181,7 @@ def publish_artifacts(tag: str, state: dict, release: dict) -> None:
         )
         + "\n"
     )
-    files = [versioned_dmg, stable_dmg, versioned_zip, stable_zip, evidence, ROOT / "release.json"]
+    files = [versioned_dmg, stable_dmg, versioned_zip, stable_zip, feed, evidence, ROOT / "release.json"]
     checksums = OUT / "SHA256SUMS"
     checksums.write_text("".join(f"{sha(path)}  {path.name}\n" for path in files))
     files.append(checksums)
@@ -157,6 +202,8 @@ def advance(tag: str) -> None:
         raise ValueError("Checkout, tag, and release version must agree")
     if call("git", "status", "--porcelain"):
         raise ValueError("Release requires a clean checkout")
+    if not os.environ.get("SPARKLE_PRIVATE_KEY"):
+        raise ValueError("Missing SPARKLE_PRIVATE_KEY; refusing to build an update-enabled release")
     call("git", "fetch", "origin", "main")
     call("git", "merge-base", "--is-ancestor", commit, "origin/main")
 

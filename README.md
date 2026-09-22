@@ -19,7 +19,7 @@
 
 Heliarc makes `Ctrl-Tab` in [Helium](https://helium.computer/) work like Arc's recent-tab switcher. Hold the shortcut to see visual previews, keep pressing to move through recent tabs, add Shift to reverse, and release to switch.
 
-It is a native, dockless macOS app. There is no Chrome extension, no native-messaging host, no account, and no analytics.
+It is a native, dockless macOS app with Sparkle automatic updates. There is no Chrome extension, no native-messaging host, no account, and no analytics.
 
 ## Why Heliarc?
 
@@ -27,9 +27,10 @@ It is a native, dockless macOS app. There is no Chrome extension, no native-mess
 - **Visual tab previews:** lightweight cached thumbnails show the last state you left behind.
 - **Favicons and titles:** recognize tabs instantly without opening them first.
 - **Built specifically for Helium:** communicates with Helium through its native Apple Events interface.
-- **Tiny footprint:** no embedded browser, updater framework, or always-running capture stream.
+- **Tiny footprint:** no embedded browser or always-running capture stream.
 - **Private by design:** browser data stays local; Heliarc has no telemetry or external service.
 - **Feels native:** dockless operation, optional menu-bar icon, configurable shortcut, and launch at login.
+- **Keeps itself current:** checks for signed updates automatically, with manual checks in setup and the menu bar.
 
 If you searched for **Arc features in Helium**, **how to arcify Helium**, **Arc Ctrl-Tab for Helium**, or **tab previews in Helium**, this is the missing piece.
 
@@ -52,23 +53,29 @@ That is it. Nothing needs to be installed or configured inside Helium.
 
 You can change or disable the shortcut, show 2–10 recent tabs, hide Heliarc from the menu bar, and launch it automatically at login. Hiding the menu-bar icon does not stop the app; open Heliarc again from Applications to return to settings.
 
+## Updates
+
+Heliarc uses Sparkle to check for signed updates automatically. Updates download and install in the background by default, then apply when Heliarc quits. You can also choose **Check for updates…** in Heliarc setup or the menu bar.
+
+Versions before 1.1.0 did not include Sparkle, so they need one manual install first. After that, future releases can update through the app. The update feed is `https://github.com/robin-liquidium/heliarc/releases/latest/download/appcast.xml` and every update archive and feed is Ed25519-signed.
+
 ## Lightweight by design
 
 Heliarc captures a single low-resolution image when you leave a tab. It does not continuously record the screen, and it skips redundant captures during rapid switching.
 
 - Decoded thumbnails use a **4 MB** memory cache.
 - Compressed thumbnail storage is limited to **40 files / 8 MB**.
-- Favicons use a **768 KB** decoded cache and **2 MB** disk cache.
+- Favicons use a **768 KB** decoded cache and an **8 MB / 512-icon** persistent disk cache.
 - Only two favicon requests run at once, responses are capped at 128 KB, and images are downsampled to 48 px.
 - Stale or overlapping screenshot work is rejected instead of accumulating in the background.
 
-The installed app is roughly 4 MB and uses only system frameworks.
+The installed app is roughly 8 MB. Sparkle is the only third-party runtime dependency.
 
 ## Privacy
 
 Heliarc uses Accessibility for the global shortcut and tab activity notifications, Apple Events to track the active tab and read and activate tabs in the frontmost Helium window, and optional Screen Recording for thumbnails. While Helium is in the foreground, a lightweight periodic check also reconciles the active tab. Recency is tracked while Heliarc is running; extremely rapid switches may skip an intermediate tab.
 
-Favicons are requested from each visible page's own `/favicon.ico`. Requests send no browser cookies or stored credentials, redirects are restricted to the same host, and all caches remain inside the macOS cache directory. Heliarc contains no analytics, advertising, crash-reporting SDK, or cloud backend.
+Favicons are read from Helium's own local favicon database through a validated temporary snapshot, then stored in Heliarc's small persistent cache. The full database snapshot is discarded immediately after each lookup batch. If Helium has no icon, Heliarc falls back to the page's own `/favicon.ico` without browser cookies or stored credentials. Heliarc contains no analytics, advertising, crash-reporting SDK, or cloud backend.
 
 ## FAQ
 
@@ -89,11 +96,12 @@ Install Heliarc and grant optional Screen Recording permission in its setup wind
 No. Heliarc is an independent open-source project. Helium, Arc, and their respective marks belong to their owners.
 
 <!-- release:start -->
-### Latest release: 1.0.1
+### Latest release: 1.1.0
 
-- Fix recent-tab ordering after switching tabs with clicks or browser shortcuts, without a browser extension.
-- Track active tabs through native macOS notifications, with a lightweight check while Helium is in the foreground.
-- Prevent delayed activity reads or unsuccessful switches from corrupting recent-tab order.
+- Add signed automatic updates with Sparkle, plus manual checks in setup and the menu bar.
+- Improve favicon loading with Helium's local favicon database, a larger bounded cache, and fallback handling.
+- Add an Advanced reset control for Heliarc's local favicon cache.
+- Existing Heliarc 1.0.x installations need this update installed manually once; later releases update automatically.
 <!-- release:end -->
 
 ## Build from source
@@ -118,4 +126,3 @@ Heliarc is an independent repository rather than a GitHub fork because its Heliu
 ## License
 
 [MIT](LICENSE)
-

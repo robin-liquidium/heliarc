@@ -58,6 +58,7 @@ DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer" /usr/bin/xcrun actool
 /usr/bin/plutil -insert LSMinimumSystemVersion -string 14.0 "$APP_DIR/Contents/Info.plist"
 /usr/bin/plutil -insert LSUIElement -bool true "$APP_DIR/Contents/Info.plist"
 /usr/bin/plutil -insert NSAppleEventsUsageDescription -string 'Heliarc tracks the active Helium tab for recent-tab ordering and activates tabs when you use Ctrl-Tab.' "$APP_DIR/Contents/Info.plist"
+python3 "$ROOT_DIR/script/sparkle.py" "$APP_DIR" "$IDENTITY"
 /usr/bin/codesign --force --options runtime --timestamp --sign "$IDENTITY" --entitlements "$ROOT_DIR/entitlements.plist" "$APP_DIR"
 
 if [[ "${1:-run}" == "--build" ]]; then

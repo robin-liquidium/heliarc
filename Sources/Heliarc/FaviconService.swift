@@ -17,18 +17,19 @@ final class FaviconService: NSObject, URLSessionDataDelegate, URLSessionTaskDele
 
     private let logger = Logger(subsystem: "build.robin.heliarc", category: "favicons")
     private let images = NSCache<NSString, NSImage>()
+    private let heliumStore = HeliumFaviconStore()
     private let worker: OperationQueue
     private let cacheDirectory: URL
     private let maxResponseBytes = 128 * 1_024
-    private let maxDiskBytes = 2 * 1_024 * 1_024
-    private let maxDiskFiles = 128
+    private let maxDiskBytes = 8 * 1_024 * 1_024
+    private let maxDiskFiles = 512
     private let maxConcurrentRequests = 2
     private var pending: [String: Pending] = [:]
     private var scheduled: [String] = []
     private var taskOrigins: [Int: String] = [:]
     private var buffers: [Int: Data] = [:]
     private var rejectedTasks = Set<Int>()
-    private var failedOrigins = Set<String>()
+    private var failedOrigins: [String: Date] = [:]
     private var activeRequests = 0
 
     private lazy var session: URLSession = {
@@ -47,22 +48,38 @@ final class FaviconService: NSObject, URLSessionDataDelegate, URLSessionTaskDele
         worker.name = "build.robin.heliarc.favicon-loader"
         worker.maxConcurrentOperationCount = 1
         worker.qualityOfService = .utility
-        cacheDirectory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        cacheDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("build.robin.heliarc", isDirectory: true)
             .appendingPathComponent("favicons", isDirectory: true)
         super.init()
         images.countLimit = 64
         images.totalCostLimit = 768 * 1_024
         try? FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var directory = cacheDirectory
+        try? directory.setResourceValues(values)
     }
 
     func load(_ tabs: [BrowserTab], completion: @escaping (String, NSImage) -> Void) {
         worker.addOperation { [weak self] in
             guard let self else { return }
+            defer { self.heliumStore.resetSnapshot() }
             for tab in tabs {
                 self.load(tab, completion: completion)
             }
             self.startScheduledRequests()
+        }
+    }
+
+    func resetCache() {
+        worker.addOperation { [weak self] in
+            guard let self else { return }
+            self.images.removeAllObjects()
+            self.failedOrigins.removeAll()
+            self.heliumStore.resetSnapshot()
+            try? FileManager.default.removeItem(at: self.cacheDirectory)
+            try? FileManager.default.createDirectory(at: self.cacheDirectory, withIntermediateDirectories: true)
         }
     }
 
@@ -85,7 +102,15 @@ final class FaviconService: NSObject, URLSessionDataDelegate, URLSessionTaskDele
             return
         }
 
-        guard !failedOrigins.contains(originKey) else { return }
+        if let failedAt = failedOrigins[originKey], Date().timeIntervalSince(failedAt) < 300 { return }
+        failedOrigins[originKey] = nil
+
+        if let data = heliumStore.data(for: tab.url), let image = downsample(data) {
+            images.setObject(image, forKey: cacheKey as NSString, cost: imageCost(image))
+            store(data, at: diskURL)
+            deliver(image, tabID: tab.id, completion: completion)
+            return
+        }
         let callback = Callback(tabID: tab.id, completion: completion)
         if pending[originKey] != nil {
             pending[originKey]?.callbacks.append(callback)
@@ -175,7 +200,7 @@ final class FaviconService: NSObject, URLSessionDataDelegate, URLSessionTaskDele
                 deliver(image, tabID: callback.tabID, completion: callback.completion)
             }
         } else {
-            failedOrigins.insert(originKey)
+            failedOrigins[originKey] = Date()
             logger.debug("No usable favicon for \(originKey, privacy: .private)")
         }
         startScheduledRequests()

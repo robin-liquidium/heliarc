@@ -1,10 +1,12 @@
 import AppKit
 import Combine
+import Sparkle
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let permissions = PermissionState()
     private let settings = HeliarcSettings()
+    private let updateService = UpdateService()
     private lazy var controller = HeliarcController(settings: settings)
     private var setupWindow: NSWindow?
     private var statusItem: NSStatusItem?
@@ -14,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         NSApp.applicationIconImage = HeliarcAssets.appIcon
+        updateService.start()
         controller.permissions = permissions
         menuBarVisibility = settings.$showMenuBarIcon
             .removeDuplicates()
@@ -42,9 +45,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let view = SetupView(
                 permissions: permissions,
                 settings: settings,
+                updateService: updateService,
                 requestAccessibility: { [weak self] in self?.controller.requestAccessibility() },
                 retryAutomation: { [weak self] in self?.controller.checkAutomation() },
-                requestScreenRecording: { [weak self] in self?.controller.requestScreenRecording() }
+                requestScreenRecording: { [weak self] in self?.controller.requestScreenRecording() },
+                resetFaviconCache: { [weak self] in self?.controller.resetFaviconCache() }
             )
             let window = NSWindow(contentViewController: NSHostingController(rootView: view))
             window.title = "Heliarc setup"
@@ -69,6 +74,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             ?? NSImage(systemSymbolName: "rectangle.3.group", accessibilityDescription: "Heliarc")
         let menu = NSMenu()
         menu.addItem(withTitle: "Heliarc setup…", action: #selector(showSetup), keyEquivalent: "")
+        let updateItem = menu.addItem(
+            withTitle: "Check for updates…",
+            action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
+            keyEquivalent: ""
+        )
+        updateItem.target = updateService.updaterController
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Heliarc", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu

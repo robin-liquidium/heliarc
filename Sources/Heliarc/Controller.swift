@@ -68,6 +68,10 @@ final class HeliarcController {
         permissions?.screenRecording = thumbnails.requestPermission()
     }
 
+    func resetFaviconCache() {
+        favicons.resetCache()
+    }
+
     func checkAutomation() {
         bridge.snapshot { [weak self] result in
             DispatchQueue.main.async {
