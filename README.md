@@ -66,7 +66,7 @@ The installed app is roughly 4 MB and uses only system frameworks.
 
 ## Privacy
 
-Heliarc uses Accessibility for the global shortcut, Apple Events to read and activate tabs in the frontmost Helium window, and optional Screen Recording for thumbnails.
+Heliarc uses Accessibility for the global shortcut and tab activity notifications, Apple Events to track the active tab and read and activate tabs in the frontmost Helium window, and optional Screen Recording for thumbnails. While Helium is in the foreground, a lightweight periodic check also reconciles the active tab. Recency is tracked while Heliarc is running; extremely rapid switches may skip an intermediate tab.
 
 Favicons are requested from each visible page's own `/favicon.ico`. Requests send no browser cookies or stored credentials, redirects are restricted to the same host, and all caches remain inside the macOS cache directory. Heliarc contains no analytics, advertising, crash-reporting SDK, or cloud backend.
 
@@ -89,12 +89,11 @@ Install Heliarc and grant optional Screen Recording permission in its setup wind
 No. Heliarc is an independent open-source project. Helium, Arc, and their respective marks belong to their owners.
 
 <!-- release:start -->
-### Latest release: 1.0.0
+### Latest release: 1.0.1
 
-- Bring Arc-style Ctrl-Tab switching to Helium with native tab previews, favicons, and recent-tab ordering.
-- Work directly with Helium without a browser extension, native-messaging host, account, or analytics.
-- Keep thumbnail and favicon caches deliberately small, bounded, and local to the Mac.
-- Customize the shortcut, recent-tab count, menu-bar visibility, and launch-at-login behavior.
+- Fix recent-tab ordering after switching tabs with clicks or browser shortcuts, without a browser extension.
+- Track active tabs through native macOS notifications, with a lightweight check while Helium is in the foreground.
+- Prevent delayed activity reads or unsuccessful switches from corrupting recent-tab order.
 <!-- release:end -->
 
 ## Build from source

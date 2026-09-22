@@ -80,7 +80,7 @@ def package() -> Path:
         "LSMinimumSystemVersion": "14.0",
         "LSUIElement": True,
         "NSPrincipalClass": "NSApplication",
-        "NSAppleEventsUsageDescription": "Heliarc reads and activates tabs in Helium when you use Ctrl-Tab.",
+        "NSAppleEventsUsageDescription": "Heliarc tracks the active Helium tab for recent-tab ordering and activates tabs when you use Ctrl-Tab.",
     }
     with (APP / "Contents" / "Info.plist").open("wb") as output:
         plistlib.dump(info, output)
@@ -95,4 +95,3 @@ def package() -> Path:
 
 if __name__ == "__main__":
     print(package())
-

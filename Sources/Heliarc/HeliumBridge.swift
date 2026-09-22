@@ -11,6 +11,7 @@ enum HeliumBridgeError: LocalizedError {
     case notRunning
     case noWindow
     case malformedReply
+    case automationDenied
     case appleScript(String)
 
     var errorDescription: String? {
@@ -18,6 +19,7 @@ enum HeliumBridgeError: LocalizedError {
         case .notRunning: return "Helium is not running"
         case .noWindow: return "Helium has no open window"
         case .malformedReply: return "Helium returned an unexpected reply"
+        case .automationDenied: return "Allow Helium Automation access in System Settings, then retry."
         case .appleScript(let message): return message
         }
     }
@@ -26,6 +28,25 @@ enum HeliumBridgeError: LocalizedError {
 final class HeliumBridge {
     static let bundleID = "net.imput.helium"
     private let queue = DispatchQueue(label: "build.robin.heliarc.apple-events", qos: .userInteractive)
+
+    // Activity tracking only needs identity, not the full tab list or page metadata.
+    func activeTabID(completion: @escaping (Result<String, Error>) -> Void) {
+        queue.async {
+            let script = #"""
+            tell application id "net.imput.helium"
+                if not running then return ""
+                if (count of windows) is 0 then return ""
+                return (id of active tab of front window) as text
+            end tell
+            """#
+            completion(self.run(script).flatMap { reply in
+                guard let id = reply.stringValue, !id.isEmpty else {
+                    return .failure(HeliumBridgeError.noWindow)
+                }
+                return .success(id)
+            })
+        }
+    }
 
     func snapshot(completion: @escaping (Result<HeliumSnapshot, Error>) -> Void) {
         queue.async {
@@ -79,7 +100,11 @@ final class HeliumBridge {
 
     private func run(_ source: String) -> Result<NSAppleEventDescriptor, Error> {
         var error: NSDictionary?
-        guard let reply = NSAppleScript(source: source)?.executeAndReturnError(&error) else {
+        let reply = NSAppleScript(source: source)?.executeAndReturnError(&error)
+        if let error, error[NSAppleScript.errorNumber] as? Int == -1743 {
+            return .failure(HeliumBridgeError.automationDenied)
+        }
+        guard let reply, error == nil else {
             let message = error?[NSAppleScript.errorMessage] as? String ?? "Helium Automation access failed"
             return .failure(HeliumBridgeError.appleScript(message))
         }

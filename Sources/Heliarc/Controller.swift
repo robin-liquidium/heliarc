@@ -6,6 +6,14 @@ import OSLog
 final class HeliarcController {
     private let logger = Logger(subsystem: "build.robin.heliarc", category: "runtime")
     private let bridge = HeliumBridge()
+    private lazy var activityObserver = HeliumActivityObserver { [weak self] in
+        self?.refreshActiveTab()
+    }
+    private var activityReadInFlight = false
+    private var activityReadPending = false
+    private var activityGeneration = 0
+    private var activationInProgress = false
+    private var activityReadsAllowed = true
     private let thumbnails = ThumbnailService()
     private let favicons = FaviconService()
     private let state = SwitcherState()
@@ -34,6 +42,7 @@ final class HeliarcController {
         logger.info("Heliarc started")
         installEventTapIfAllowed()
         checkAutomation()
+        activityObserver.start()
     }
 
     func requestAccessibility() {
@@ -51,6 +60,7 @@ final class HeliarcController {
             lastAccessibilityState = trusted
         }
         installEventTapIfAllowed()
+        activityObserver.refresh()
         return trusted
     }
 
@@ -64,11 +74,13 @@ final class HeliarcController {
                 guard let self else { return }
                 switch result {
                 case .success(let snapshot):
+                    self.activityReadsAllowed = true
                     self.logger.info("Helium Automation ready; tabs: \(snapshot.tabs.count, privacy: .public)")
                     self.permissions?.automationReady = true
                     self.permissions?.automationMessage = "Ready — \(snapshot.tabs.count) tabs found"
-                    if let active = snapshot.activeTabID { self.record(active) }
+                    self.refreshActiveTab()
                 case .failure(let error):
+                    if case HeliumBridgeError.automationDenied = error { self.activityReadsAllowed = false }
                     self.logger.error("Helium Automation failed: \(error.localizedDescription, privacy: .public)")
                     self.permissions?.automationReady = false
                     self.permissions?.automationMessage = error.localizedDescription
@@ -116,6 +128,7 @@ final class HeliarcController {
         thumbnailCaptureGeneration &+= 1
         pendingSteps += step
         guard !loading else { return }
+        activityGeneration &+= 1
         loading = true
         sessionActive = true
         bridge.snapshot { [weak self] result in
@@ -131,6 +144,7 @@ final class HeliarcController {
             permissions?.automationReady = false
             permissions?.automationMessage = error.localizedDescription
         case .success(let snapshot):
+            activityReadsAllowed = true
             permissions?.automationReady = true
             permissions?.automationMessage = "Ready — \(snapshot.tabs.count) tabs found"
             if let active = snapshot.activeTabID { record(active) }
@@ -180,13 +194,22 @@ final class HeliarcController {
         let tab = candidates[state.selectedIndex]
         let targetWindow = windowID
         hideSession()
-        record(tab.id)
-        bridge.activate(windowID: targetWindow, tabID: tab.id) { _ in }
+        activityGeneration &+= 1
+        activationInProgress = true
+        bridge.activate(windowID: targetWindow, tabID: tab.id) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.activationInProgress = false
+                if case .success = result { self.record(tab.id) }
+                self.refreshActiveTab()
+            }
+        }
     }
 
     private func cancel() {
         thumbnailCaptureGeneration &+= 1
         hideSession()
+        refreshActiveTab()
     }
 
     private func hideSession() {
@@ -201,7 +224,43 @@ final class HeliarcController {
     }
 
     private func record(_ id: String) {
+        guard mru.first != id else { return }
         mru = TabOrdering.recording(id, in: mru)
+    }
+
+    private func refreshActiveTab() {
+        guard !sessionActive, !activationInProgress,
+              activityReadsAllowed,
+              let app = NSWorkspace.shared.frontmostApplication,
+              app.bundleIdentifier == HeliumBridge.bundleID else { return }
+        if activityReadInFlight {
+            activityReadPending = true
+            return
+        }
+        activityReadInFlight = true
+        activityReadPending = false
+        let generation = activityGeneration
+        let pid = app.processIdentifier
+        bridge.activeTabID { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.activityReadInFlight = false
+                if case .failure(HeliumBridgeError.automationDenied) = result {
+                    self.activityReadsAllowed = false
+                }
+                // A delayed observation must not undo a newer switcher selection.
+                if self.activityGeneration == generation,
+                   !self.sessionActive, !self.activationInProgress,
+                   NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
+                   case .success(let id) = result {
+                    self.record(id)
+                }
+                if self.activityReadPending {
+                    self.activityReadPending = false
+                    self.refreshActiveTab()
+                }
+            }
+        }
     }
 
     private func captureSourceThumbnail(_ tab: BrowserTab) {
