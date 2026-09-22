@@ -63,6 +63,57 @@ public struct CaptureLimiter<Key: Hashable> {
     }
 }
 
+public enum LaunchPolicy {
+    /// A start this soon after the user logs in is macOS launching Heliarc as a
+    /// login item, which is not a user request, so the setup window stays closed.
+    public static let loginLaunchWindow: TimeInterval = 180
+
+    public static func isLoginItemLaunch(
+        loginItemFlag: Bool,
+        launchAtLogin: Bool,
+        secondsSinceLogin: TimeInterval
+    ) -> Bool {
+        if loginItemFlag { return true }
+        return launchAtLogin && secondsSinceLogin < loginLaunchWindow
+    }
+
+    /// Wall-clock time since the console user logged in, falling back to boot time,
+    /// so that time spent asleep or at the login window still counts.
+    public static func secondsSinceLogin(now: Date = Date()) -> TimeInterval {
+        let reference = max(bootDate() ?? .distantPast, consoleLoginDate() ?? .distantPast)
+        guard reference > .distantPast else { return .greatestFiniteMagnitude }
+        return now.timeIntervalSince(reference)
+    }
+
+    private static func bootDate() -> Date? {
+        var bootTime = timeval()
+        var size = MemoryLayout<timeval>.stride
+        guard sysctlbyname("kern.boottime", &bootTime, &size, nil, 0) == 0, bootTime.tv_sec > 0 else {
+            return nil
+        }
+        return Date(timeIntervalSince1970: TimeInterval(bootTime.tv_sec))
+    }
+
+    private static func consoleLoginDate() -> Date? {
+        var latest: Date?
+        setutxent()
+        while let entry = getutxent() {
+            guard entry.pointee.ut_type == USER_PROCESS,
+                  fixedString(entry.pointee.ut_line) == "console" else { continue }
+            latest = Date(timeIntervalSince1970: TimeInterval(entry.pointee.ut_tv.tv_sec))
+        }
+        endutxent()
+        return latest
+    }
+
+    private static func fixedString<T>(_ value: T) -> String {
+        var copy = value
+        return withUnsafeBytes(of: &copy) { raw in
+            String(cString: raw.bindMemory(to: CChar.self).baseAddress!)
+        }
+    }
+}
+
 public struct CacheEntry: Equatable, Sendable {
     public let id: String
     public let modifiedAt: Date

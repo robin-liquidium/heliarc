@@ -96,12 +96,9 @@ Install Heliarc and grant optional Screen Recording permission in its setup wind
 No. Heliarc is an independent open-source project. Helium, Arc, and their respective marks belong to their owners.
 
 <!-- release:start -->
-### Latest release: 1.1.0
+### Latest release: 1.1.1
 
-- Add signed automatic updates with Sparkle, plus manual checks in setup and the menu bar.
-- Improve favicon loading with Helium's local favicon database, a larger bounded cache, and fallback handling.
-- Add an Advanced reset control for Heliarc's local favicon cache.
-- Existing Heliarc 1.0.x installations need this update installed manually once; later releases update automatically.
+- Starting at login now stays quietly in the background instead of opening the setup window; open Heliarc again from Applications whenever you want settings.
 <!-- release:end -->
 
 ## Build from source

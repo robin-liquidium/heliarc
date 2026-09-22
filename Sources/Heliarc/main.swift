@@ -1,9 +1,13 @@
 import AppKit
+import ApplicationServices
 import Combine
+import HeliarcCore
+import OSLog
 import Sparkle
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+    private let logger = Logger(subsystem: "build.robin.heliarc", category: "launch")
     private let permissions = PermissionState()
     private let settings = HeliarcSettings()
     private let updateService = UpdateService()
@@ -12,6 +16,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem?
     private var permissionTimer: Timer?
     private var menuBarVisibility: AnyCancellable?
+    private var launchedAtLogin = false
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        settings.refreshLaunchAtLogin()
+        let loginItemFlag = NSAppleEventManager.shared().currentAppleEvent?
+            .paramDescriptor(forKeyword: AEKeyword(keyAELaunchedAsLogInItem)) != nil
+        let secondsSinceLogin = LaunchPolicy.secondsSinceLogin()
+        launchedAtLogin = LaunchPolicy.isLoginItemLaunch(
+            loginItemFlag: loginItemFlag,
+            launchAtLogin: settings.launchAtLogin,
+            secondsSinceLogin: secondsSinceLogin
+        )
+        logger.info("Launch: login item flag \(loginItemFlag, privacy: .public), launch at login \(self.settings.launchAtLogin, privacy: .public), login start \(self.launchedAtLogin, privacy: .public), \(Int(secondsSinceLogin), privacy: .public)s since login")
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -21,7 +39,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menuBarVisibility = settings.$showMenuBarIcon
             .removeDuplicates()
             .sink { [weak self] visible in self?.setMenuBarVisible(visible) }
-        showSetup()
+        if shouldShowSetupOnLaunch {
+            showSetup()
+        }
         controller.requestAccessibility()
         controller.start()
         if !controller.pollPermissions() {
@@ -37,6 +57,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showSetup()
         return true
+    }
+
+    /// Heliarc is a menu bar utility, so a launch at login stays in the background.
+    /// The setup window opens only when the user opened the app themselves or when
+    /// Heliarc cannot work without the Accessibility permission.
+    private var shouldShowSetupOnLaunch: Bool {
+        !launchedAtLogin || !AXIsProcessTrusted()
     }
 
     @objc private func showSetup() {

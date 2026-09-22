@@ -1,11 +1,8 @@
 {
-  "version": "1.1.0",
-  "build": 1100,
+  "version": "1.1.1",
+  "build": 1101,
   "date": "2026-09-23",
   "changes": [
-    "Add signed automatic updates with Sparkle, plus manual checks in setup and the menu bar.",
-    "Improve favicon loading with Helium's local favicon database, a larger bounded cache, and fallback handling.",
-    "Add an Advanced reset control for Heliarc's local favicon cache.",
-    "Existing Heliarc 1.0.x installations need this update installed manually once; later releases update automatically."
+    "Starting at login now stays quietly in the background instead of opening the setup window; open Heliarc again from Applications whenever you want settings."
   ]
 }
