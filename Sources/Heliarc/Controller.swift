@@ -12,6 +12,8 @@ final class HeliarcController {
     private var activityReadInFlight = false
     private var activityReadPending = false
     private var activityGeneration = 0
+    private var observedActiveTab: HeliumTabIdentity?
+    private var activityThumbnailGeneration = 0
     private var activationInProgress = false
     private var activityReadsAllowed = true
     private let thumbnails = ThumbnailService()
@@ -66,6 +68,10 @@ final class HeliarcController {
 
     func requestScreenRecording() {
         permissions?.screenRecording = thumbnails.requestPermission()
+        if thumbnails.hasPermission {
+            observedActiveTab = nil
+            refreshActiveTab()
+        }
     }
 
     func resetFaviconCache() {
@@ -130,6 +136,7 @@ final class HeliarcController {
             return
         }
         thumbnailCaptureGeneration &+= 1
+        activityThumbnailGeneration &+= 1
         pendingSteps += step
         guard !loading else { return }
         activityGeneration &+= 1
@@ -245,7 +252,7 @@ final class HeliarcController {
         activityReadPending = false
         let generation = activityGeneration
         let pid = app.processIdentifier
-        bridge.activeTabID { [weak self] result in
+        bridge.activeTabIdentity { [weak self] result in
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.activityReadInFlight = false
@@ -256,12 +263,47 @@ final class HeliarcController {
                 if self.activityGeneration == generation,
                    !self.sessionActive, !self.activationInProgress,
                    NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
-                   case .success(let id) = result {
-                    self.record(id)
+                   case .success(let tab) = result {
+                    self.record(tab.id)
+                    self.scheduleActivityThumbnail(for: tab)
                 }
                 if self.activityReadPending {
                     self.activityReadPending = false
                     self.refreshActiveTab()
+                }
+            }
+        }
+    }
+
+    private func scheduleActivityThumbnail(for tab: HeliumTabIdentity) {
+        guard observedActiveTab != tab else { return }
+        observedActiveTab = tab
+        activityThumbnailGeneration &+= 1
+        guard thumbnails.hasPermission else { return }
+        let generation = activityThumbnailGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self,
+                  !self.sessionActive,
+                  self.activityThumbnailGeneration == generation,
+                  self.observedActiveTab == tab,
+                  NSWorkspace.shared.frontmostApplication?.bundleIdentifier == HeliumBridge.bundleID else { return }
+            self.bridge.activeTab { [weak self] result in
+                DispatchQueue.main.async {
+                    guard let self,
+                          !self.sessionActive,
+                          self.activityThumbnailGeneration == generation,
+                          self.observedActiveTab == tab,
+                          NSWorkspace.shared.frontmostApplication?.bundleIdentifier == HeliumBridge.bundleID,
+                          case .success(let currentTab) = result,
+                          currentTab.id == tab.id,
+                          currentTab.url == tab.url else { return }
+                    self.thumbnails.capture(currentTab, isCurrent: { [weak self] in
+                        guard let self else { return false }
+                        return !self.sessionActive
+                            && self.activityThumbnailGeneration == generation
+                            && self.observedActiveTab == tab
+                            && NSWorkspace.shared.frontmostApplication?.bundleIdentifier == HeliumBridge.bundleID
+                    }) { _ in }
                 }
             }
         }

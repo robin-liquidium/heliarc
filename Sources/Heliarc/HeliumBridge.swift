@@ -7,6 +7,11 @@ struct HeliumSnapshot {
     let tabs: [BrowserTab]
 }
 
+struct HeliumTabIdentity: Equatable {
+    let id: String
+    let url: String
+}
+
 enum HeliumBridgeError: LocalizedError {
     case notRunning
     case noWindow
@@ -29,21 +34,46 @@ final class HeliumBridge {
     static let bundleID = "net.imput.helium"
     private let queue = DispatchQueue(label: "build.robin.heliarc.apple-events", qos: .userInteractive)
 
-    // Activity tracking only needs identity, not the full tab list or page metadata.
-    func activeTabID(completion: @escaping (Result<String, Error>) -> Void) {
+    // Poll only the active tab's identity and URL; fetch its title only for a capture.
+    func activeTabIdentity(completion: @escaping (Result<HeliumTabIdentity, Error>) -> Void) {
         queue.async {
             let script = #"""
             tell application id "net.imput.helium"
-                if not running then return ""
-                if (count of windows) is 0 then return ""
-                return (id of active tab of front window) as text
+                if not running then return {""}
+                if (count of windows) is 0 then return {""}
+                set browserTab to active tab of front window
+                return {(id of browserTab) as text, (URL of browserTab) as text}
             end tell
             """#
             completion(self.run(script).flatMap { reply in
-                guard let id = reply.stringValue, !id.isEmpty else {
+                guard reply.numberOfItems == 2,
+                      let id = reply.atIndex(1)?.stringValue,
+                      let url = reply.atIndex(2)?.stringValue else {
                     return .failure(HeliumBridgeError.noWindow)
                 }
-                return .success(id)
+                return .success(HeliumTabIdentity(id: id, url: url))
+            })
+        }
+    }
+
+    func activeTab(completion: @escaping (Result<BrowserTab, Error>) -> Void) {
+        queue.async {
+            let script = #"""
+            tell application id "net.imput.helium"
+                if not running then return {""}
+                if (count of windows) is 0 then return {""}
+                set browserTab to active tab of front window
+                return {(id of browserTab) as text, (title of browserTab) as text, (URL of browserTab) as text}
+            end tell
+            """#
+            completion(self.run(script).flatMap { reply in
+                guard reply.numberOfItems == 3,
+                      let id = reply.atIndex(1)?.stringValue,
+                      let title = reply.atIndex(2)?.stringValue,
+                      let url = reply.atIndex(3)?.stringValue else {
+                    return .failure(HeliumBridgeError.noWindow)
+                }
+                return .success(BrowserTab(id: id, title: title, url: url))
             })
         }
     }

@@ -24,7 +24,7 @@ It is a native, dockless macOS app with Sparkle automatic updates. There is no C
 ## Why Heliarc?
 
 - **Arc-style Ctrl-Tab:** switch by recency instead of blindly walking the tab strip.
-- **Visual tab previews:** lightweight cached thumbnails show the last state you left behind.
+- **Visual tab previews:** lightweight cached thumbnails appear after you visit tabs, even when you switch without Ctrl-Tab.
 - **Favicons and titles:** recognize tabs instantly without opening them first.
 - **Built specifically for Helium:** communicates with Helium through its native Apple Events interface.
 - **Tiny footprint:** no embedded browser or always-running capture stream.
@@ -61,7 +61,7 @@ Versions before 1.1.0 did not include Sparkle, so they need one manual install f
 
 ## Lightweight by design
 
-Heliarc captures a single low-resolution image when you leave a tab. It does not continuously record the screen, and it skips redundant captures during rapid switching.
+Heliarc captures one low-resolution image shortly after a tab becomes active or navigates to a new URL, whether you reached it through Heliarc or Helium. Opening the switcher also refreshes the current tab. It does not continuously record the screen, and it skips redundant captures during rapid switching.
 
 - Decoded thumbnails use a **4 MB** memory cache.
 - Compressed thumbnail storage is limited to **40 files / 8 MB**.
