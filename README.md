@@ -15,7 +15,7 @@
   <img alt="macOS 14 or later" src="https://img.shields.io/badge/macOS-14%2B-black?style=flat-square&logo=apple">
 </p>
 
-![Heliarc showing Arc-style tab previews in Helium](docs/images/heliarc-switcher.png)
+![Heliarc cycling through recent Helium tabs with live previews](docs/images/heliarc-switching.gif)
 
 Heliarc makes `Ctrl-Tab` in [Helium](https://helium.computer/) work like Arc's recent-tab switcher. Hold the shortcut to see visual previews, keep pressing to move through recent tabs, add Shift to reverse, and release to switch.
 
@@ -26,6 +26,7 @@ It is a native, dockless macOS app with Sparkle automatic updates. There is no C
 - **Arc-style Ctrl-Tab:** switch by recency instead of blindly walking the tab strip.
 - **Visual tab previews:** lightweight cached thumbnails appear after you visit tabs, even when you switch without Ctrl-Tab.
 - **Favicons and titles:** recognize tabs instantly without opening them first.
+- **Feels like part of macOS:** a Liquid Glass panel, rounded cards, and a focus ring tinted to match each page.
 - **Built specifically for Helium:** communicates with Helium through its native Apple Events interface.
 - **Tiny footprint:** no embedded browser or always-running capture stream.
 - **Private by design:** browser data stays local; Heliarc has no telemetry or external service.
@@ -33,6 +34,12 @@ It is a native, dockless macOS app with Sparkle automatic updates. There is no C
 - **Keeps itself current:** checks for signed updates automatically, with manual checks in setup and the menu bar.
 
 If you searched for **Arc features in Helium**, **how to arcify Helium**, **Arc Ctrl-Tab for Helium**, or **tab previews in Helium**, this is the missing piece.
+
+## Looks native
+
+The switcher uses the same Liquid Glass material as macOS itself, follows light and dark mode, and tints the focus ring with the system color that best matches each tab's page. On macOS 14 and 15 it falls back to the classic translucent HUD.
+
+![Heliarc's Liquid Glass tab switcher floating over Helium](docs/images/heliarc-switcher.png)
 
 ## Install
 
@@ -96,14 +103,19 @@ Install Heliarc and grant optional Screen Recording permission in its setup wind
 No. Heliarc is an independent open-source project. Helium, Arc, and their respective marks belong to their owners.
 
 <!-- release:start -->
-### Latest release: 1.1.1
+### Latest release: 1.2.0
 
-- Starting at login now stays quietly in the background instead of opening the setup window; open Heliarc again from Applications whenever you want settings.
+- Redesigned switcher with Liquid Glass on macOS 26 and later, rounded cards, and automatic light and dark mode.
+- The focus ring now takes a system color matching each tab's page and slides smoothly between tabs.
+- Tabs without a preview show a tinted card with a large favicon instead of a gray placeholder.
+- Tab previews now also appear for tabs you visit normally, not only ones reached with Ctrl-Tab.
+- Fixed the switcher staying open when Ctrl-Tab was cancelled with Esc right away.
+- Fixed a rare crash when Helium reported a window without tabs.
 <!-- release:end -->
 
 ## Build from source
 
-Heliarc is a Swift Package with no third-party runtime dependencies.
+Heliarc is a Swift Package; Sparkle is its only third-party dependency.
 
 ```sh
 git clone https://github.com/robin-liquidium/heliarc.git
