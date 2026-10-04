@@ -6,16 +6,12 @@ public final class HeliumFaviconStore: @unchecked Sendable {
     private let fileManager: FileManager
     private let heliumRoot: URL
     private let snapshotDirectory: URL
-    private let refreshInterval: TimeInterval
     private var snapshotProfile: String?
-    private var snapshotSourceDate: Date?
-    private var refreshedAt: Date?
 
     public init(
         fileManager: FileManager = .default,
         heliumRoot: URL? = nil,
-        snapshotDirectory: URL? = nil,
-        refreshInterval: TimeInterval = 300
+        snapshotDirectory: URL? = nil
     ) {
         self.fileManager = fileManager
         let applicationSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -26,7 +22,6 @@ public final class HeliumFaviconStore: @unchecked Sendable {
             ?? caches
                 .appendingPathComponent("build.robin.heliarc", isDirectory: true)
                 .appendingPathComponent("helium-favicon-db", isDirectory: true)
-        self.refreshInterval = refreshInterval
     }
 
     public func data(for pageURL: String) -> Data? {
@@ -34,41 +29,26 @@ public final class HeliumFaviconStore: @unchecked Sendable {
         for candidate in lookupCandidates(for: pageURL) {
             if let data = query(databaseURL, pageURL: candidate) { return data }
         }
-        guard let origin = originPrefix(for: pageURL) else { return nil }
+        guard let origin = FaviconPolicy.originURL(for: pageURL)?.absoluteString else { return nil }
         return query(databaseURL, originPrefix: origin)
     }
 
     public func resetSnapshot() {
         try? fileManager.removeItem(at: snapshotDirectory)
         snapshotProfile = nil
-        snapshotSourceDate = nil
-        refreshedAt = nil
     }
 
     private var snapshotURL: URL {
         snapshotDirectory.appendingPathComponent("Favicons.sqlite")
     }
 
-    private func currentSnapshot(now: Date = Date()) -> URL? {
+    // The caller resets the snapshot after each lookup batch, so one snapshot serves one batch.
+    private func currentSnapshot() -> URL? {
         guard let profile = activeProfile(), isSafeProfileName(profile) else { return existingSnapshot() }
+        if snapshotProfile == profile, let snapshot = existingSnapshot() { return snapshot }
         let source = heliumRoot.appendingPathComponent(profile, isDirectory: true).appendingPathComponent("Favicons")
         guard fileManager.fileExists(atPath: source.path) else { return existingSnapshot() }
-        let sourceDate = (try? source.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
-        let isFresh = refreshedAt.map { now.timeIntervalSince($0) < refreshInterval } ?? false
-        let sourceUnchanged = snapshotProfile == profile && snapshotSourceDate == sourceDate
-        if snapshotProfile == profile, fileManager.fileExists(atPath: snapshotURL.path) {
-            if isFresh { return snapshotURL }
-            if sourceUnchanged {
-                refreshedAt = now
-                return snapshotURL
-            }
-        }
-
-        if makeSnapshot(source: source) {
-            snapshotProfile = profile
-            snapshotSourceDate = sourceDate
-            refreshedAt = now
-        }
+        if makeSnapshot(source: source) { snapshotProfile = profile }
         return existingSnapshot()
     }
 
@@ -92,7 +72,7 @@ public final class HeliumFaviconStore: @unchecked Sendable {
     private func makeSnapshot(source: URL) -> Bool {
         try? fileManager.createDirectory(at: snapshotDirectory, withIntermediateDirectories: true)
         for _ in 0..<2 {
-            let candidate = snapshotDirectory.appendingPathComponent("candidate-(UUID().uuidString).sqlite")
+            let candidate = snapshotDirectory.appendingPathComponent("candidate-\(UUID().uuidString).sqlite")
             let candidateJournal = URL(fileURLWithPath: candidate.path + "-journal")
             defer {
                 try? fileManager.removeItem(at: candidate)
@@ -212,20 +192,6 @@ public final class HeliumFaviconStore: @unchecked Sendable {
         components.fragment = nil
         if let normalized = components.url?.absoluteString, normalized != value { result.append(normalized) }
         return result
-    }
-
-    private func originPrefix(for value: String) -> String? {
-        guard var components = URLComponents(string: value),
-              let scheme = components.scheme?.lowercased(),
-              scheme == "http" || scheme == "https",
-              components.host != nil else { return nil }
-        components.scheme = scheme
-        components.user = nil
-        components.password = nil
-        components.path = ""
-        components.query = nil
-        components.fragment = nil
-        return components.url?.absoluteString
     }
 
     private func escapedLikePrefix(_ value: String) -> String {

@@ -34,11 +34,11 @@ final class HeliumBridge {
     static let bundleID = "net.imput.helium"
     private let queue = DispatchQueue(label: "build.robin.heliarc.apple-events", qos: .userInteractive)
 
-    // Poll only the active tab's identity and URL; fetch its title only for a capture.
+    // Activity tracking only needs the active tab's identity and URL.
     func activeTabIdentity(completion: @escaping (Result<HeliumTabIdentity, Error>) -> Void) {
         queue.async {
             let script = #"""
-            tell application id "net.imput.helium"
+            tell application id "\#(Self.bundleID)"
                 if not running then return {""}
                 if (count of windows) is 0 then return {""}
                 set browserTab to active tab of front window
@@ -56,32 +56,10 @@ final class HeliumBridge {
         }
     }
 
-    func activeTab(completion: @escaping (Result<BrowserTab, Error>) -> Void) {
-        queue.async {
-            let script = #"""
-            tell application id "net.imput.helium"
-                if not running then return {""}
-                if (count of windows) is 0 then return {""}
-                set browserTab to active tab of front window
-                return {(id of browserTab) as text, (title of browserTab) as text, (URL of browserTab) as text}
-            end tell
-            """#
-            completion(self.run(script).flatMap { reply in
-                guard reply.numberOfItems == 3,
-                      let id = reply.atIndex(1)?.stringValue,
-                      let title = reply.atIndex(2)?.stringValue,
-                      let url = reply.atIndex(3)?.stringValue else {
-                    return .failure(HeliumBridgeError.noWindow)
-                }
-                return .success(BrowserTab(id: id, title: title, url: url))
-            })
-        }
-    }
-
     func snapshot(completion: @escaping (Result<HeliumSnapshot, Error>) -> Void) {
         queue.async {
             let script = #"""
-            tell application id "net.imput.helium"
+            tell application id "\#(Self.bundleID)"
                 if not running then return {"NOT_RUNNING"}
                 if (count of windows) is 0 then return {"NO_WINDOW"}
                 set browserWindow to front window
@@ -109,7 +87,7 @@ final class HeliumBridge {
         }
         queue.async {
             let script = #"""
-            tell application id "net.imput.helium"
+            tell application id "\#(Self.bundleID)"
                 repeat with browserWindow in windows
                     if (id of browserWindow) as text is "\#(windowID)" then
                         set tabRecords to properties of every tab of browserWindow
@@ -157,7 +135,7 @@ final class HeliumBridge {
         }
         let activeID = reply.atIndex(2)?.stringValue
         var tabs: [BrowserTab] = []
-        for index in 1...tabList.numberOfItems {
+        for index in stride(from: 1, through: tabList.numberOfItems, by: 1) {
             guard let descriptor = tabList.atIndex(index), descriptor.numberOfItems == 3,
                   let id = descriptor.atIndex(1)?.stringValue,
                   let title = descriptor.atIndex(2)?.stringValue,

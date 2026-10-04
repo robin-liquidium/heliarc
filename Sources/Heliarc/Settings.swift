@@ -20,23 +20,20 @@ final class HeliarcSettings: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        if let data = defaults.data(forKey: Self.storageKey),
-           let saved = try? JSONDecoder().decode(HeliarcConfiguration.self, from: data) {
-            tabSwitch = saved.tabSwitch
-            maxRecentTabs = saved.maxRecentTabs
-            showMenuBarIcon = saved.showMenuBarIcon
-        } else {
-            tabSwitch = Self.defaultShortcut
-            maxRecentTabs = 6
-            showMenuBarIcon = true
-        }
+        let saved = defaults.data(forKey: Self.storageKey)
+            .flatMap { try? JSONDecoder().decode(HeliarcConfiguration.self, from: $0) }
+        let configuration = saved ?? HeliarcConfiguration(tabSwitch: Self.defaultShortcut)
+        tabSwitch = configuration.tabSwitch
+        maxRecentTabs = configuration.maxRecentTabs
+        showMenuBarIcon = configuration.showMenuBarIcon
         refreshLaunchAtLogin()
     }
 
     func reset() {
-        tabSwitch = Self.defaultShortcut
-        maxRecentTabs = 6
-        showMenuBarIcon = true
+        let configuration = HeliarcConfiguration(tabSwitch: Self.defaultShortcut)
+        tabSwitch = configuration.tabSwitch
+        maxRecentTabs = configuration.maxRecentTabs
+        showMenuBarIcon = configuration.showMenuBarIcon
     }
 
     func setLaunchAtLogin(_ enabled: Bool) {

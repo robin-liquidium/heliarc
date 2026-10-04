@@ -6,13 +6,14 @@ Every public release is a universal macOS 14+ application, signed with Developer
 
 ## Credentials
 
-GitHub Actions requires five repository secrets:
+GitHub Actions requires six repository secrets:
 
 - `MACOS_CERTIFICATE_P12_BASE64`
 - `MACOS_CERTIFICATE_PASSWORD`
 - `APP_STORE_CONNECT_KEY_P8_BASE64`
 - `APP_STORE_CONNECT_KEY_ID`
 - `APP_STORE_CONNECT_ISSUER_ID`
+- `SPARKLE_PRIVATE_KEY`
 
 The release workflow loads them into an ephemeral keychain and removes the temporary files even if a run fails. Never commit credentials. For a local release, set `SIGNING_IDENTITY` and either `NOTARY_PROFILE`, or `NOTARY_KEY_PATH`, `APP_STORE_CONNECT_KEY_ID`, and `APP_STORE_CONNECT_ISSUER_ID`.
 

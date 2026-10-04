@@ -6,7 +6,7 @@ import XCTest
 final class HeliumFaviconStoreTests: XCTestCase {
     func testReadsExactAndOriginFallbackFromValidatedSnapshot() throws {
         let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("HeliumFaviconStoreTests-(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("HeliumFaviconStoreTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let profile = root.appendingPathComponent("Profile 2", isDirectory: true)
         let snapshots = root.appendingPathComponent("Snapshots", isDirectory: true)
@@ -28,11 +28,7 @@ final class HeliumFaviconStoreTests: XCTestCase {
         sqlite3_close(database)
         database = nil
 
-        let store = HeliumFaviconStore(
-            heliumRoot: root,
-            snapshotDirectory: snapshots,
-            refreshInterval: 300
-        )
+        let store = HeliumFaviconStore(heliumRoot: root, snapshotDirectory: snapshots)
         XCTAssertEqual(store.data(for: "https://example.com/article#section"), Data([1, 2, 3, 4]))
         XCTAssertEqual(store.data(for: "https://example.com/another-page"), Data([1, 2, 3, 4]))
     }

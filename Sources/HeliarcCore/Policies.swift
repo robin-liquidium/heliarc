@@ -143,6 +143,27 @@ public enum CachePruningPolicy {
         }
         return evictions
     }
+
+    /// Removes the oldest files in `directory` until it fits both limits.
+    public static func prune(directory: URL, maximumCount: Int, maximumBytes: Int) {
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .fileSizeKey]
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles]
+        ) else { return }
+        let entries = files.map { url -> CacheEntry in
+            let values = try? url.resourceValues(forKeys: keys)
+            return CacheEntry(
+                id: url.lastPathComponent,
+                modifiedAt: values?.contentModificationDate ?? .distantPast,
+                bytes: values?.fileSize ?? 0
+            )
+        }
+        for id in evictionIDs(entries: entries, maximumCount: maximumCount, maximumBytes: maximumBytes) {
+            try? FileManager.default.removeItem(at: directory.appendingPathComponent(id))
+        }
+    }
 }
 
 public enum CacheKey {

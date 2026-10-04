@@ -2,7 +2,10 @@ import AppKit
 import ApplicationServices
 
 final class HeliumActivityObserver {
-    static let heliumBundleID = "net.imput.helium"
+    private static let notifications: [CFString] = [
+        kAXFocusedUIElementChangedNotification as CFString,
+        kAXFocusedWindowChangedNotification as CFString,
+    ]
 
     private final class CallbackContext {
         weak var owner: HeliumActivityObserver?
@@ -36,24 +39,7 @@ final class HeliumActivityObserver {
     deinit {
         fallbackTimer?.invalidate()
         workspaceObservers.forEach(workspace.notificationCenter.removeObserver)
-        callbackContext?.isActive = false
-        if let observer = accessibilityObserver, let application = accessibilityApplication {
-            AXObserverRemoveNotification(
-                observer,
-                application,
-                kAXFocusedUIElementChangedNotification as CFString
-            )
-            AXObserverRemoveNotification(
-                observer,
-                application,
-                kAXFocusedWindowChangedNotification as CFString
-            )
-            CFRunLoopRemoveSource(
-                CFRunLoopGetMain(),
-                AXObserverGetRunLoopSource(observer),
-                .commonModes
-            )
-        }
+        removeAccessibilityObserver()
     }
 
     func start() {
@@ -83,7 +69,7 @@ final class HeliumActivityObserver {
             center.addObserver(forName: name, object: nil, queue: .main) { [weak self] notification in
                 guard let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
                         as? NSRunningApplication,
-                      application.bundleIdentifier == Self.heliumBundleID else { return }
+                      application.bundleIdentifier == HeliumBridge.bundleID else { return }
                 self?.handleLifecycleNotification(name, application: application)
             }
         }
@@ -128,13 +114,8 @@ final class HeliumActivityObserver {
         let applicationElement = AXUIElementCreateApplication(pid)
         let context = CallbackContext(owner: self)
         let refcon = Unmanaged.passUnretained(context).toOpaque()
-        let notifications: [CFString] = [
-            kAXFocusedUIElementChangedNotification as CFString,
-            kAXFocusedWindowChangedNotification as CFString,
-        ]
-
         var registeredNotifications: [CFString] = []
-        for notification in notifications {
+        for notification in Self.notifications {
             let result = AXObserverAddNotification(observer, applicationElement, notification, refcon)
             if result == .success || result == .notificationAlreadyRegistered {
                 registeredNotifications.append(notification)
@@ -156,16 +137,9 @@ final class HeliumActivityObserver {
     private func removeAccessibilityObserver() {
         callbackContext?.isActive = false
         if let observer = accessibilityObserver, let application = accessibilityApplication {
-            AXObserverRemoveNotification(
-                observer,
-                application,
-                kAXFocusedUIElementChangedNotification as CFString
-            )
-            AXObserverRemoveNotification(
-                observer,
-                application,
-                kAXFocusedWindowChangedNotification as CFString
-            )
+            for notification in Self.notifications {
+                AXObserverRemoveNotification(observer, application, notification)
+            }
             CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
         }
         accessibilityObserver = nil
@@ -196,17 +170,17 @@ final class HeliumActivityObserver {
         preferredApplication: NSRunningApplication? = nil
     ) -> NSRunningApplication? {
         if let preferredApplication,
-           preferredApplication.bundleIdentifier == Self.heliumBundleID,
+           preferredApplication.bundleIdentifier == HeliumBridge.bundleID,
            !preferredApplication.isTerminated {
             return preferredApplication
         }
         return workspace.runningApplications.first {
-            $0.bundleIdentifier == Self.heliumBundleID && !$0.isTerminated
+            $0.bundleIdentifier == HeliumBridge.bundleID && !$0.isTerminated
         }
     }
 
     private var isHeliumForeground: Bool {
-        workspace.frontmostApplication?.bundleIdentifier == Self.heliumBundleID
+        workspace.frontmostApplication?.bundleIdentifier == HeliumBridge.bundleID
     }
 
     private static let accessibilityCallback: AXObserverCallback = { _, _, _, refcon in

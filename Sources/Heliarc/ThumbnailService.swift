@@ -18,6 +18,7 @@ final class ThumbnailService {
     private var limiter = CaptureLimiter<String>()
     private let captureCooldown: TimeInterval = 3
     private let maxDiskBytes = 8 * 1_024 * 1_024
+    private let maxDiskFiles = 40
 
     init() {
         images.countLimit = 12
@@ -78,18 +79,15 @@ final class ThumbnailService {
 
     private func startCapture(_ request: CaptureRequest) {
         let started = CFAbsoluteTimeGetCurrent()
-        let targetWindowID = frontmostHeliumWindowID()
+        guard let targetWindowID = frontmostHeliumWindow()?.id else {
+            finishCapture(request, image: nil)
+            return
+        }
 
         SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: true) { [weak self] content, error in
             guard let self else { return }
             guard error == nil, let content,
-                  let window = content.windows.first(where: {
-                      $0.windowID == targetWindowID
-                          || (targetWindowID == nil
-                              && $0.owningApplication?.bundleIdentifier == HeliumBridge.bundleID
-                              && $0.windowLayer == 0
-                              && $0.isOnScreen)
-                  }) else {
+                  let window = content.windows.first(where: { $0.windowID == targetWindowID }) else {
                 DispatchQueue.main.async {
                     self.finishCapture(request, image: nil)
                 }
@@ -158,26 +156,6 @@ final class ThumbnailService {
     }
 
     private func pruneDiskCache() {
-        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .fileSizeKey]
-        guard let files = try? FileManager.default.contentsOfDirectory(
-            at: cacheDirectory,
-            includingPropertiesForKeys: Array(keys),
-            options: [.skipsHiddenFiles]
-        ) else { return }
-        let entries = files.map { url -> CacheEntry in
-            let values = try? url.resourceValues(forKeys: keys)
-            return CacheEntry(
-                id: url.lastPathComponent,
-                modifiedAt: values?.contentModificationDate ?? .distantPast,
-                bytes: values?.fileSize ?? 0
-            )
-        }
-        for id in CachePruningPolicy.evictionIDs(
-            entries: entries,
-            maximumCount: 40,
-            maximumBytes: maxDiskBytes
-        ) {
-            try? FileManager.default.removeItem(at: cacheDirectory.appendingPathComponent(id))
-        }
+        CachePruningPolicy.prune(directory: cacheDirectory, maximumCount: maxDiskFiles, maximumBytes: maxDiskBytes)
     }
 }

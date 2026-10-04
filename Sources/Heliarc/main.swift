@@ -6,7 +6,7 @@ import OSLog
 import Sparkle
 import SwiftUI
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate {
     private let logger = Logger(subsystem: "build.robin.heliarc", category: "launch")
     private let permissions = PermissionState()
     private let settings = HeliarcSettings()

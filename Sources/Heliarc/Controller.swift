@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Carbon.HIToolbox
 import HeliarcCore
 import OSLog
 
@@ -21,12 +22,12 @@ final class HeliarcController {
     private let state = SwitcherState()
     private lazy var panel = SwitcherPanel(state: state)
     private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
     private var candidates: [BrowserTab] = []
     private var windowID = ""
     private var pendingSteps = 0
     private var loading = false
     private var sessionActive = false
+    private var snapshotGeneration = 0
     private var commitPending = false
     private var sourceCaptureInProgress = false
     private var thumbnailCaptureGeneration = 0
@@ -37,7 +38,6 @@ final class HeliarcController {
 
     init(settings: HeliarcSettings) {
         self.settings = settings
-        state.onHover = { [weak self] index in self?.select(index) }
     }
 
     func start() {
@@ -117,7 +117,7 @@ final class HeliarcController {
             cycle(backward: currentModifiers & CGEventFlags.maskShift.rawValue != 0)
             return true
         }
-        if type == .keyDown, keyCode == 53, sessionActive {
+        if type == .keyDown, keyCode == kVK_Escape, sessionActive {
             cancel()
             return true
         }
@@ -142,8 +142,14 @@ final class HeliarcController {
         activityGeneration &+= 1
         loading = true
         sessionActive = true
+        snapshotGeneration &+= 1
+        let generation = snapshotGeneration
         bridge.snapshot { [weak self] result in
-            DispatchQueue.main.async { self?.loaded(result) }
+            DispatchQueue.main.async {
+                // A reply for a cancelled or superseded session must not reopen the switcher.
+                guard let self, self.snapshotGeneration == generation else { return }
+                self.loaded(result)
+            }
         }
     }
 
@@ -171,7 +177,7 @@ final class HeliarcController {
             let normalized = ((pendingSteps % count) + count) % count
             pendingSteps = 0
             state.show(tabs: candidates, selectedIndex: normalized)
-            panel.present(over: frontmostHeliumWindowFrame(), tabCount: count)
+            panel.present(over: frontmostHeliumWindow()?.frame, tabCount: count)
             thumbnails.load(candidates) { [weak self] images in
                 guard let self, self.sessionActive else { return }
                 self.state.setThumbnails(images)
@@ -191,7 +197,7 @@ final class HeliarcController {
 
     private func select(_ index: Int) {
         guard candidates.indices.contains(index) else { return }
-        state.selectedIndex = index
+        state.select(index)
     }
 
     private func commit() {
@@ -225,6 +231,7 @@ final class HeliarcController {
 
     private func hideSession() {
         sessionActive = false
+        snapshotGeneration &+= 1
         loading = false
         commitPending = false
         sourceCaptureInProgress = false
@@ -287,7 +294,7 @@ final class HeliarcController {
                   self.activityThumbnailGeneration == generation,
                   self.observedActiveTab == tab,
                   NSWorkspace.shared.frontmostApplication?.bundleIdentifier == HeliumBridge.bundleID else { return }
-            self.bridge.activeTab { [weak self] result in
+            self.bridge.activeTabIdentity { [weak self] result in
                 DispatchQueue.main.async {
                     guard let self,
                           !self.sessionActive,
@@ -295,9 +302,9 @@ final class HeliarcController {
                           self.observedActiveTab == tab,
                           NSWorkspace.shared.frontmostApplication?.bundleIdentifier == HeliumBridge.bundleID,
                           case .success(let currentTab) = result,
-                          currentTab.id == tab.id,
-                          currentTab.url == tab.url else { return }
-                    self.thumbnails.capture(currentTab, isCurrent: { [weak self] in
+                          currentTab == tab else { return }
+                    let browserTab = BrowserTab(id: tab.id, title: "", url: tab.url)
+                    self.thumbnails.capture(browserTab, isCurrent: { [weak self] in
                         guard let self else { return false }
                         return !self.sessionActive
                             && self.activityThumbnailGeneration == generation
@@ -346,7 +353,6 @@ final class HeliarcController {
         ) else { return }
         eventTap = tap
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
         logger.info("Global shortcut event tap installed")

@@ -237,26 +237,6 @@ final class FaviconService: NSObject, URLSessionDataDelegate, URLSessionTaskDele
     }
 
     private func pruneDiskCache() {
-        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .fileSizeKey]
-        guard let files = try? FileManager.default.contentsOfDirectory(
-            at: cacheDirectory,
-            includingPropertiesForKeys: Array(keys),
-            options: [.skipsHiddenFiles]
-        ) else { return }
-        let entries = files.map { url -> CacheEntry in
-            let values = try? url.resourceValues(forKeys: keys)
-            return CacheEntry(
-                id: url.lastPathComponent,
-                modifiedAt: values?.contentModificationDate ?? .distantPast,
-                bytes: values?.fileSize ?? 0
-            )
-        }
-        for id in CachePruningPolicy.evictionIDs(
-            entries: entries,
-            maximumCount: maxDiskFiles,
-            maximumBytes: maxDiskBytes
-        ) {
-            try? FileManager.default.removeItem(at: cacheDirectory.appendingPathComponent(id))
-        }
+        CachePruningPolicy.prune(directory: cacheDirectory, maximumCount: maxDiskFiles, maximumBytes: maxDiskBytes)
     }
 }
