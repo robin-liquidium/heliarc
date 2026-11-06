@@ -101,6 +101,7 @@ final class HeliarcController {
 
     func handle(type: CGEventType, event: CGEvent) -> Bool {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            logger.notice("Shortcut event tap was disabled by macOS; re-enabling")
             if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
             return false
         }
@@ -157,6 +158,7 @@ final class HeliarcController {
         loading = false
         switch result {
         case .failure(let error):
+            logger.error("Switcher could not read Helium tabs: \(error.localizedDescription, privacy: .public)")
             cancel()
             permissions?.automationReady = false
             permissions?.automationMessage = error.localizedDescription
@@ -172,6 +174,7 @@ final class HeliarcController {
                 limit: settings.maxRecentTabs
             )
             windowID = snapshot.windowID
+            logger.info("Switcher opened: \(snapshot.tabs.count, privacy: .public) tabs in window, \(self.candidates.count, privacy: .public) shown")
             guard !candidates.isEmpty else { cancel(); return }
             let count = candidates.count
             let normalized = ((pendingSteps % count) + count) % count
@@ -217,7 +220,11 @@ final class HeliarcController {
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.activationInProgress = false
-                if case .success = result { self.record(tab.id) }
+                switch result {
+                case .success: self.record(tab.id)
+                case .failure(let error):
+                    self.logger.error("Tab activation failed: \(error.localizedDescription, privacy: .public)")
+                }
                 self.refreshActiveTab()
             }
         }

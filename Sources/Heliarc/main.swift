@@ -6,13 +6,15 @@ import OSLog
 import Sparkle
 import SwiftUI
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let logger = Logger(subsystem: "build.robin.heliarc", category: "launch")
     private let permissions = PermissionState()
     private let settings = HeliarcSettings()
     private let updateService = UpdateService()
     private lazy var controller = HeliarcController(settings: settings)
     private var setupWindow: NSWindow?
+    private var feedbackWindow: NSWindow?
+    private var feedbackSession = FeedbackSession()
     private var statusItem: NSStatusItem?
     private var permissionTimer: Timer?
     private var menuBarVisibility: AnyCancellable?
@@ -76,7 +78,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 requestAccessibility: { [weak self] in self?.controller.requestAccessibility() },
                 retryAutomation: { [weak self] in self?.controller.checkAutomation() },
                 requestScreenRecording: { [weak self] in self?.controller.requestScreenRecording() },
-                resetFaviconCache: { [weak self] in self?.controller.resetFaviconCache() }
+                resetFaviconCache: { [weak self] in self?.controller.resetFaviconCache() },
+                sendFeedback: { [weak self] in self?.showFeedback() }
             )
             let window = NSWindow(contentViewController: NSHostingController(rootView: view))
             window.title = "Heliarc setup"
@@ -87,6 +90,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         setupWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func showFeedback() {
+        // Closing the window discards a draft, so a later open starts a fresh form.
+        if feedbackWindow?.isVisible != true {
+            feedbackSession = FeedbackSession()
+            let view = FeedbackView(session: feedbackSession, permissions: permissions, settings: settings) { [weak self] in
+                self?.feedbackWindow?.close()
+                self?.feedbackWindow = nil
+            }
+            let window = NSWindow(contentViewController: NSHostingController(rootView: view))
+            window.title = "Heliarc feedback"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            window.delegate = self
+            window.center()
+            feedbackWindow = window
+        }
+        feedbackWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// A feedback send in flight keeps its window open so it can't be sent twice or lose its result.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        sender !== feedbackWindow || !feedbackSession.isSubmitting
     }
 
     private func setMenuBarVisible(_ visible: Bool) {
@@ -107,6 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             keyEquivalent: ""
         )
         updateItem.target = updateService.updaterController
+        menu.addItem(withTitle: "Send feedback…", action: #selector(showFeedback), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Heliarc", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
