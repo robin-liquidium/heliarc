@@ -16,6 +16,7 @@ struct SetupView: View {
     let retryAutomation: () -> Void
     let requestScreenRecording: () -> Void
     let resetFaviconCache: () -> Void
+    let sendFeedback: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -168,6 +169,7 @@ struct SetupView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
+                Button("Send feedback…", action: sendFeedback)
                 Button("Done") { NSApp.keyWindow?.close() }
                     .keyboardShortcut(.defaultAction)
             }
