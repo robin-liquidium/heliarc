@@ -358,19 +358,26 @@ final class SwitcherPanel: NSPanel {
 
 /// Frontmost on-screen Helium window; the window list is ordered front to back.
 func frontmostHeliumWindow() -> (id: CGWindowID, frame: NSRect)? {
-    guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == HeliumBridge.bundleID }),
-          let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]],
+    guard let window = frontmostHeliumCGWindow(),
           let desktopTop = NSScreen.screens.first?.frame.maxY else { return nil }
-    for window in windows {
-        guard window[kCGWindowOwnerPID as String] as? pid_t == app.processIdentifier,
-              window[kCGWindowLayer as String] as? Int == 0,
-              let number = window[kCGWindowNumber as String] as? NSNumber,
-              let bounds = window[kCGWindowBounds as String] as? [String: Any],
-              let frame = CGRect(dictionaryRepresentation: bounds as CFDictionary),
-              frame.width > 100, frame.height > 100 else { continue }
-        // CoreGraphics uses a top-left origin; AppKit uses bottom-left.
-        let appKitFrame = NSRect(x: frame.minX, y: desktopTop - frame.maxY, width: frame.width, height: frame.height)
-        return (CGWindowID(number.uint32Value), appKitFrame)
-    }
-    return nil
+    // CoreGraphics uses a top-left origin; AppKit uses bottom-left.
+    let frame = window.bounds
+    return (window.id, NSRect(x: frame.minX, y: desktopTop - frame.maxY, width: frame.width, height: frame.height))
+}
+
+/// Frontmost normal-level Helium window in CoreGraphics (top-left origin) coordinates.
+func frontmostHeliumCGWindow() -> (id: CGWindowID, bounds: CGRect)? {
+    guard let (pid, windows) = heliumWindowList() else { return nil }
+    return HeliumWindowSelection.frontmostNormalWindow(in: windows, ownerPID: pid)
+}
+
+func heliumScreenWindows() -> HeliumWindowSelection.ScreenWindows {
+    guard let (pid, windows) = heliumWindowList() else { return .init(frontmostNormal: nil, floating: []) }
+    return HeliumWindowSelection.screenWindows(in: windows, ownerPID: pid)
+}
+
+private func heliumWindowList() -> (pid_t, [[String: Any]])? {
+    guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == HeliumBridge.bundleID }),
+          let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
+    return (app.processIdentifier, windows)
 }
