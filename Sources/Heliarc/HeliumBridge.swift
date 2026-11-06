@@ -37,11 +37,14 @@ final class HeliumBridge {
     // Activity tracking only needs the active tab's identity and URL.
     func activeTabIdentity(completion: @escaping (Result<HeliumTabIdentity, Error>) -> Void) {
         queue.async {
+            let windowID: String
+            switch self.browserWindowID() {
+            case .success(let id): windowID = id
+            case .failure(let error): return completion(.failure(error))
+            }
             let script = #"""
             tell application id "\#(Self.bundleID)"
-                if not running then return {""}
-                if (count of windows) is 0 then return {""}
-                set browserTab to active tab of front window
+                set browserTab to active tab of window id \#(windowID)
                 return {(id of browserTab) as text, (URL of browserTab) as text}
             end tell
             """#
@@ -58,11 +61,14 @@ final class HeliumBridge {
 
     func snapshot(completion: @escaping (Result<HeliumSnapshot, Error>) -> Void) {
         queue.async {
+            let windowID: String
+            switch self.browserWindowID() {
+            case .success(let id): windowID = id
+            case .failure(let error): return completion(.failure(error))
+            }
             let script = #"""
             tell application id "\#(Self.bundleID)"
-                if not running then return {"NOT_RUNNING"}
-                if (count of windows) is 0 then return {"NO_WINDOW"}
-                set browserWindow to front window
+                set browserWindow to window id \#(windowID)
                 set tabRecords to properties of every tab of browserWindow
                 set resultTabs to {}
                 repeat with tabRecord in tabRecords
@@ -103,6 +109,38 @@ final class HeliumBridge {
             end tell
             """#
             completion(self.run(script).flatMap { $0.booleanValue ? .success(()) : .failure(HeliumBridgeError.malformedReply) })
+        }
+    }
+
+    /// ID of the window to read, skipping floating windows such as picture-in-picture.
+    private func browserWindowID() -> Result<String, Error> {
+        let script = #"""
+        tell application id "\#(Self.bundleID)"
+            if not running then return {"NOT_RUNNING"}
+            set windowList to {}
+            repeat with browserWindow in windows
+                set end of windowList to {(id of browserWindow) as text, bounds of browserWindow}
+            end repeat
+            return windowList
+        end tell
+        """#
+        return run(script).flatMap { reply in
+            if reply.numberOfItems == 1, reply.atIndex(1)?.stringValue == "NOT_RUNNING" {
+                return .failure(HeliumBridgeError.notRunning)
+            }
+            var ids: [String] = []
+            var bounds: [[Int]] = []
+            for index in stride(from: 1, through: reply.numberOfItems, by: 1) {
+                guard let item = reply.atIndex(index), item.numberOfItems == 2,
+                      let id = item.atIndex(1)?.stringValue, Int64(id) != nil,
+                      let rect = item.atIndex(2), rect.numberOfItems == 4 else { continue }
+                ids.append(id)
+                bounds.append((1...4).map { Int(rect.atIndex($0)?.int32Value ?? 0) })
+            }
+            guard let index = HeliumWindowSelection.browserWindowIndex(appleScriptBounds: bounds, screen: heliumScreenWindows()) else {
+                return .failure(HeliumBridgeError.noWindow)
+            }
+            return .success(ids[index])
         }
     }
 
