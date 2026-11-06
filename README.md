@@ -103,14 +103,10 @@ Install Heliarc and grant optional Screen Recording permission in its setup wind
 No. Heliarc is an independent open-source project. Helium, Arc, and their respective marks belong to their owners.
 
 <!-- release:start -->
-### Latest release: 1.2.0
+### Latest release: 1.2.1
 
-- Redesigned switcher with Liquid Glass on macOS 26 and later, rounded cards, and automatic light and dark mode.
-- The focus ring now takes a system color matching each tab's page and slides smoothly between tabs.
-- Tabs without a preview show a tinted card with a large favicon instead of a gray placeholder.
-- Tab previews now also appear for tabs you visit normally, not only ones reached with Ctrl-Tab.
-- Fixed the switcher staying open when Ctrl-Tab was cancelled with Esc right away.
-- Fixed a rare crash when Helium reported a window without tabs.
+- Added a Send feedback window (menu bar menu and settings) that files an anonymous public GitHub issue, optionally with app and system versions and a diagnostics ZIP.
+- Fixed the switcher showing a single "Untitled tab" while Picture-in-Picture is active.
 <!-- release:end -->
 
 ## Build from source
