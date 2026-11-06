@@ -42,6 +42,16 @@ final class HeliumWindowSelectionTests: XCTestCase {
         XCTAssertEqual(HeliumWindowSelection.frontmostNormalWindow(in: windows, ownerPID: heliumPID)?.id, 3)
     }
 
+    func testSmallDocumentPictureInPictureCountsAsFloating() {
+        let smallPiP = CGRect(x: 1500, y: 900, width: 240, height: 86)
+        let windows = [window(number: 1, layer: 3, frame: smallPiP)]
+        XCTAssertEqual(HeliumWindowSelection.screenWindows(in: windows, ownerPID: heliumPID).floating, [smallPiP])
+        XCTAssertNil(HeliumWindowSelection.browserWindowIndex(
+            appleScriptBounds: [appleScriptBounds(smallPiP)],
+            screen: .init(frontmostNormal: nil, floating: [smallPiP])
+        ))
+    }
+
     // MARK: Choosing the AppleScript window
 
     func testPicksTheOnScreenNormalWindowBehindPictureInPicture() {

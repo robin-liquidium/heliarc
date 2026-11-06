@@ -30,7 +30,8 @@ public enum HeliumWindowSelection {
     public static func screenWindows(in windows: [[String: Any]], ownerPID: pid_t) -> ScreenWindows {
         let floating = windows.compactMap { window -> CGRect? in
             guard let layer = window[kCGWindowLayer as String] as? Int, layer > 0 else { return nil }
-            return heliumFrame(window, ownerPID: ownerPID)
+            // No size floor: a Document PiP window can be as small as 240×86 points.
+            return heliumFrame(window, ownerPID: ownerPID, minimumSide: 0)
         }
         return ScreenWindows(frontmostNormal: frontmostNormalWindow(in: windows, ownerPID: ownerPID)?.bounds, floating: floating)
     }
@@ -47,11 +48,11 @@ public enum HeliumWindowSelection {
         return appleScriptBounds.firstIndex { !isFloating($0) }
     }
 
-    private static func heliumFrame(_ window: [String: Any], ownerPID: pid_t) -> CGRect? {
+    private static func heliumFrame(_ window: [String: Any], ownerPID: pid_t, minimumSide: CGFloat = 100) -> CGRect? {
         guard window[kCGWindowOwnerPID as String] as? pid_t == ownerPID,
               let bounds = window[kCGWindowBounds as String] as? [String: Any],
               let frame = CGRect(dictionaryRepresentation: bounds as CFDictionary),
-              frame.width > 100, frame.height > 100 else { return nil }
+              frame.width > minimumSide, frame.height > minimumSide else { return nil }
         return frame
     }
 
